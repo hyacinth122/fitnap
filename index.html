@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FitSnap - 极简健身记录</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+:root {
+  --primary: #2d6a4f;
+  --primary-light: #40916c;
+  --primary-bg: #d8f3dc;
+  --danger: #c0392b;
+  --warning: #e67e22;
+  --bg: #f8f9fa;
+  --card: #ffffff;
+  --text: #212529;
+  --text-secondary: #6c757d;
+  --border: #dee2e6;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --nav-height: 60px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px);
+  -webkit-tap-highlight-color: transparent;
+}
+/* 页面容器 */
+.page { display: none; padding: 16px; animation: fadeIn 0.2s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 底部导航 */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: var(--card); border-top: 1px solid var(--border);
+  display: flex; justify-content: space-around; align-items: center;
+  height: var(--nav-height); padding-bottom: var(--safe-bottom);
+  box-shadow: 0 -1px 6px rgba(0,0,0,0.04);
+}
+.nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  flex: 1; padding: 6px 0; cursor: pointer; border: none; background: none;
+  color: var(--text-secondary); font-size: 11px; transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-item.active { color: var(--primary); }
+.nav-item svg { width: 22px; height: 22px; }
+
+/* 顶部栏 */
+.top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.top-bar h1 { font-size: 20px; font-weight: 700; color: var(--primary); }
+.btn-icon {
+  width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--card);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: var(--shadow); color: var(--text-secondary);
+}
+.btn-icon:active { background: var(--border); }
+
+/* 卡片 */
+.card {
+  background: var(--card); border-radius: var(--radius); padding: 16px;
+  box-shadow: var(--shadow); margin-bottom: 12px;
+}
+.card-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+
+/* 按钮 */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 20px; border-radius: 24px; border: none; font-size: 14px;
+  font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:active { background: var(--primary-light); }
+.btn-primary:disabled { background: #adb5bd; cursor: not-allowed; }
+.btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+.btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 18px; }
+.btn-danger { background: var(--danger); color: #fff; font-size: 12px; padding: 6px 14px; border-radius: 18px; border: none; cursor: pointer; }
+.btn-block { display: flex; width: 100%; }
+
+/* 输入框 */
+.input {
+  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px;
+  font-size: 14px; background: var(--bg); outline: none; transition: border 0.15s;
+}
+.input:focus { border-color: var(--primary); }
+
+/* 覆盖层 */
+.overlay {
+  display: none; position: fixed; inset: 0; z-index: 200; background: var(--bg);
+  padding: 16px; overflow-y: auto; animation: fadeIn 0.2s ease;
+}
+.overlay.show { display: block; }
+
+/* 营养卡片 */
+.nutrition-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+.nutrition-item { text-align: center; padding: 8px 4px; border-radius: 8px; background: var(--bg); }
+.nutrition-item .value { font-size: 18px; font-weight: 700; color: var(--primary); }
+.nutrition-item .label { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.food-list { margin-top: 10px; }
+.food-tag { display: inline-block; background: var(--primary-bg); color: var(--primary); padding: 3px 10px; border-radius: 12px; font-size: 12px; margin: 2px 4px 2px 0; }
+
+/* 打卡日历 */
+.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.calendar-grid .day-name { font-size: 11px; color: var(--text-secondary); padding: 4px 0; font-weight: 600; }
+.calendar-grid .day {
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.calendar-grid .day.checked { background: var(--primary); color: #fff; font-weight: 600; }
+.calendar-grid .day.weight-day { border: 2px solid var(--warning); }
+.calendar-grid .day.checked.weight-day { background: var(--primary); color: #fff; border: 2px solid var(--warning); }
+.calendar-grid .day.today { box-shadow: 0 0 0 2px #0d6efd; }
+.calendar-grid .day.selected { box-shadow: 0 0 0 2px var(--warning); }
+.calendar-grid .day.other { color: #ccc; }
+.calendar-grid .day.empty { cursor: default; }
+
+/* 图表容器 */
+.chart-wrap { position: relative; height: 240px; margin: 8px 0; }
+
+/* 加载/提示 */
+.loading { text-align: center; padding: 24px; color: var(--text-secondary); }
+.spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toast {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 300;
+  background: #333; color: #fff; padding: 10px 24px; border-radius: 20px; font-size: 13px;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* 进度条 */
+.progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s, background 0.3s; }
+
+/* 历史缩略图 */
+.thumb { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; background: var(--bg); flex-shrink: 0; }
+.history-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.history-item:last-child { border-bottom: none; }
+.history-meta { font-size: 12px; color: var(--text-secondary); }
+
+/* 文件上传隐藏 */
+.hidden-input { display: none; }
+
+/* 预览图 */
+.preview-img { width: 100%; max-height: 240px; object-fit: contain; border-radius: 10px; margin: 8px 0; background: #00000008; }
+
+/* 响应式 */
+@media (min-width: 600px) {
+  body { max-width: 480px; margin: 0 auto; }
+  .bottom-nav { max-width: 480px; left: 50%; transform: translateX(-50%); }
+}
+</style>
+</head>
+<body>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- 底部导航 -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="nav-item active" data-page="diet">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+    <span>饮食</span>
+  </button>
+  <button class="nav-item" data-page="checkin">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 4.25l.75-.75a2.121 2.121 0 013 3L6.5 10.25 2.75 6.5a2.121 2.121 0 013-3l.75.75"/><path d="M2.5 14.5l.75-.75a2.121 2.121 0 013 3l-3.75 3.75L6.5 17a2.121 2.121 0 013 3l-.75.75"/></svg>
+    <span>打卡</span>
+  </button>
+  <button class="nav-item" data-page="weight">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+    <span>体重</span>
+  </button>
+</nav>
+
+<!-- ==================== 饮食分析页 ==================== -->
+<section class="page active" id="page-diet">
+  <div class="top-bar">
+    <h1>🍽️ AI 饮食分析</h1>
+    <button class="btn-icon" id="btnSettings" title="设置">⚙️</button>
+  </div>
+
+  <div class="card" id="dietUploadCard">
+    <div class="card-title">拍下你的食物</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">拍照或选择照片，AI 自动识别食物并估算营养。如果你的模型不支持视觉，也可以用下方的文字描述。</p>
+    <input type="file" accept="image/*" capture="environment" class="hidden-input" id="dietFileInput">
+    <button class="btn btn-primary btn-block" id="btnCapture" style="margin-bottom:8px;">📷 拍照</button>
+    <button class="btn btn-outline btn-block" id="btnSelectPhoto">🖼️ 从相册选择</button>
+
+    <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">或手动描述食物（适用于纯文本模型）</p>
+      <textarea class="input" id="dietTextInput" placeholder="例如：中午吃了食堂一份宫保鸡丁盖饭，肉大概100g，米饭一碗，还喝了一杯中杯珍珠奶茶" rows="3" style="margin-bottom:8px;resize:vertical;"></textarea>
+      <button class="btn btn-outline btn-block" id="btnAnalyzeText">📝 分析文字描述</button>
+    </div>
+  </div>
+
+  <!-- 预览区域（独立卡片，不嵌套在上传卡片内） -->
+  <div id="dietPreview" style="display:none;">
+    <div class="card">
+      <img class="preview-img" id="dietPreviewImg" alt="预览">
+      <button class="btn btn-primary btn-block" id="btnAnalyze" style="margin-top:8px;">🔍 开始分析</button>
+      <button class="btn btn-outline btn-block" id="btnResetDiet" style="margin-top:8px;">↩ 重新选择</button>
+    </div>
+  </div>
+
+  <div id="dietResult" style="display:none;"></div>
+  <div id="dietLoading" class="loading" style="display:none;"><div class="spinner"></div><p style="margin-top:8px;">AI 正在识别中...</p></div>
+
+  <h3 style="font-size:15px;margin:20px 0 8px;">📋 饮食历史</h3>
+  <div id="dietHistory"><p style="color:var(--text-secondary);font-size:13px;">暂无记录</p></div>
+</section>
+
+<!-- ==================== 训练打卡页 ==================== -->
+<section class="page" id="page-checkin">
+  <div class="top-bar">
+    <h1>🏋️ 训练打卡</h1>
+  </div>
+
+  <div class="card">
+    <div class="card-title">今日打卡</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">拍张照片，写几句话记录今天的训练</p>
+    <input type="file" accept="image/*" class="hidden-input" id="checkinFileInput">
+    <button class="btn btn-primary btn-block" id="btnCheckinPhoto" style="margin-bottom:8px;">📸 拍训练照</button>
+    <textarea class="input" id="checkinNote" placeholder="今天练了什么？感觉如何？（选填）" rows="2" style="margin-bottom:8px;resize:vertical;"></textarea>
+    <div id="checkinPreview" style="display:none;">
+      <img class="preview-img" id="checkinPreviewImg" alt="预览">
+      <button class="btn btn-primary btn-block" id="btnSaveCheckin">✅ 保存打卡</button>
+    </div>
+  </div>
+
+  <!-- 日历 -->
+  <div class="card" id="checkinCalendar"></div>
+
+  <!-- 选中日期详情 -->
+  <div class="card" id="checkinDetail" style="display:none;"></div>
+</section>
+
+<!-- ==================== 体重追踪页 ==================== -->
+<section class="page" id="page-weight">
+  <div class="top-bar">
+    <h1>⚖️ 体重追踪</h1>
+  </div>
+
+  <div class="card">
+    <div class="card-title">记录体重</div>
+    <div style="display:flex;gap:8px;align-items:end;margin-bottom:8px;">
+      <div style="flex:1;">
+        <label style="font-size:12px;color:var(--text-secondary);">日期</label>
+        <input type="date" class="input" id="weightDate">
+      </div>
+      <div style="flex:1;">
+        <label style="font-size:12px;color:var(--text-secondary);">体重 (kg)</label>
+        <input type="number" class="input" id="weightValue" placeholder="70.0" step="0.1" min="30" max="300">
+      </div>
+      <button class="btn btn-primary btn-sm" id="btnAddWeight" style="margin-bottom:0;flex-shrink:0;">+ 记录</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:12px;color:var(--text-secondary);">目标体重：</span>
+      <input type="number" class="input" id="weightGoal" placeholder="68.0" step="0.1" min="30" max="300" style="width:100px;">
+      <span style="font-size:12px;color:var(--text-secondary);">kg</span>
+      <button class="btn btn-outline btn-sm" id="btnExportCSV">📥 CSV</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">趋势曲线</div>
+    <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
+    <p style="font-size:12px;color:var(--text-secondary);text-align:center;" id="weightSummary"></p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">数据记录</div>
+    <div id="weightTable"></div>
+  </div>
+</section>
+
+<!-- ==================== 设置覆盖层 ==================== -->
+<div class="overlay" id="settingsOverlay">
+  <div class="top-bar">
+    <h1>⚙️ 设置</h1>
+    <button class="btn-icon" id="btnSettingsClose">✕</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">API 配置</div>
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">配置你自己的大模型 API，AI 饮食分析将使用此模型</p>
+
+    <label style="font-size:12px;color:var(--text-secondary);">模型模板</label>
+    <select class="input" id="apiTemplate" style="margin-bottom:8px;">
+      <option value="openai">OpenAI 兼容 (GPT-4V / GPT-4o)</option>
+      <option value="anthropic">Anthropic (Claude)</option>
+      <option value="deepseek">DeepSeek (V3 / V4，纯文本)</option>
+      <option value="doubao">豆包 (字节跳动)</option>
+      <option value="ollama">Ollama 本地部署</option>
+      <option value="custom">自定义</option>
+    </select>
+
+    <label style="font-size:12px;color:var(--text-secondary);">API 地址</label>
+    <input type="text" class="input" id="apiUrl" placeholder="https://api.openai.com/v1/chat/completions" style="margin-bottom:8px;">
+
+    <label style="font-size:12px;color:var(--text-secondary);">API Key</label>
+    <input type="password" class="input" id="apiKey" placeholder="sk-..." style="margin-bottom:8px;">
+
+    <label style="font-size:12px;color:var(--text-secondary);">模型名称 / 接入点 ID</label>
+    <input type="text" class="input" id="modelName" placeholder="gpt-4o" style="margin-bottom:4px;">
+    <p style="font-size:10px;color:var(--text-secondary);margin-bottom:12px;display:none;" id="modelHint"></p>
+
+    <button class="btn btn-primary btn-block" id="btnTestConnection" style="margin-bottom:6px;">🔗 测试连接</button>
+    <span style="font-size:12px;color:var(--text-secondary);" id="connectionStatus"></span>
+  </div>
+
+  <div class="card">
+    <div class="card-title">存储用量</div>
+    <div class="progress-bar"><div class="progress-fill" id="storageBar"></div></div>
+    <p style="font-size:11px;color:var(--text-secondary);" id="storageInfo"></p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">数据管理</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" id="btnExportAll">📦 导出全部数据</button>
+      <input type="file" accept=".json" class="hidden-input" id="importFileInput">
+      <button class="btn btn-outline btn-sm" id="btnImportData">📥 导入数据</button>
+      <button class="btn btn-danger btn-sm" id="btnClearAll">🗑 清除全部数据</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  零、全局常量与工具函数
+// ============================================================
+const LS_PREFIX = { diet: 'diet_', checkin: 'checkin_', weight: 'weight_data', settings: 'settings', meta: 'storage_meta' };
+const RETENTION = { diet: 90, checkin: 60 };
+const COMPRESS = { diet: { w: 800, q: 0.6 }, checkin: { w: 300, q: 0.5 }, thumb: { w: 200, q: 0.4 } };
+
+const API_TEMPLATES = {
+  openai: {
+    url: 'https://api.openai.com/v1/chat/completions',
+    headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + k }),
+    body: (m, img) => ({ model: m, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: img, detail: 'low' } }, { type: 'text', text: FOOD_PROMPT }] }], max_tokens: 800, temperature: 0.3 })
+  },
+  anthropic: {
+    url: 'https://api.anthropic.com/v1/messages',
+    headers: (k) => ({ 'Content-Type': 'application/json', 'x-api-key': k, 'anthropic-version': '2023-06-01' }),
+    body: (m, img) => {
+      let b64 = img; let mime = 'image/jpeg';
+      if (b64.startsWith('data:')) { const parts = b64.split(','); mime = parts[0].split(':')[1].split(';')[0]; b64 = parts[1]; }
+      return { model: m, max_tokens: 800, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } }, { type: 'text', text: FOOD_PROMPT }] }] };
+    }
+  },
+  ollama: {
+    url: 'http://localhost:11434/v1/chat/completions',
+    headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (k || 'ollama') }),
+    body: (m, img) => ({ model: m, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: img } }, { type: 'text', text: FOOD_PROMPT }] }], max_tokens: 800, temperature: 0.3, stream: false })
+  },
+  deepseek: {
+    url: 'https://api.deepseek.com/v1/chat/completions',
+    headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + k }),
+    body: (m, img) => ({ model: m, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: img, detail: 'low' } }, { type: 'text', text: FOOD_PROMPT }] }], max_tokens: 800, temperature: 0.3 })
+  },
+  doubao: {
+    url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+    headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + k }),
+    body: (m, img) => ({ model: m, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: img, detail: 'low' } }, { type: 'text', text: FOOD_PROMPT }] }], max_tokens: 800, temperature: 0.3 })
+  },
+  custom: {
+    url: '',
+    headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + k }),
+    body: (m, img) => ({ model: m, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: img } }, { type: 'text', text: FOOD_PROMPT }] }], max_tokens: 800, temperature: 0.3 })
+  }
+};
+
+const FOOD_PROMPT = `你是一个专业营养师。请分析这张食物照片，识别其中所有食物和饮品，估算每种的重量(g)、热量(kcal)、蛋白质(g)、碳水(g)、脂肪(g)。
+返回纯JSON，不要markdown代码块，不要解释。格式：
+{
+  "foods": [{"name":"食物名","weight":克数,"calories":热量,"protein":蛋白质,"carbs":碳水,"fat":脂肪}],
+  "total": {"calories":总热量,"protein":总蛋白,"carbs":总碳水,"fat":总脂肪},
+  "advice": "一段中文晚餐调整建议，控制在40字以内"
+}`;
+
+const FOOD_PROMPT_TEXT = `你是一个专业营养师。用户描述了他们吃的一餐，请分析其中提到的所有食物和饮品，估算每种的重量(g)、热量(kcal)、蛋白质(g)、碳水(g)、脂肪(g)。
+返回纯JSON，不要markdown代码块，不要解释。格式：
+{
+  "foods": [{"name":"食物名","weight":克数,"calories":热量,"protein":蛋白质,"carbs":碳水,"fat":脂肪}],
+  "total": {"calories":总热量,"protein":总蛋白,"carbs":总碳水,"fat":总脂肪},
+  "advice": "一段中文晚餐调整建议，控制在40字以内"
+}`;
+
+function $(id) { return document.getElementById(id); }
+function qs(sel) { return document.querySelector(sel); }
+function qsa(sel) { return document.querySelectorAll(sel); }
+function fmtDate(d) { const dt = new Date(d); return dt.toISOString().slice(0, 10); }
+function todayStr() { return fmtDate(new Date()); }
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._tid); t._tid = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── Canvas 图片压缩 ──
+function compressImg(file, opts) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = opts.w; c.height = img.height * (opts.w / img.width);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', opts.q));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ── localStorage 封装 ──
+function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } }
+function lsSet(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {
+    runCleanup();
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch (e2) { toast('存储空间不足，请清理旧数据'); }
+  }
+}
+function lsDel(k) { localStorage.removeItem(k); }
+
+function getStorageUsage() {
+  let total = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && (k.startsWith('diet_') || k.startsWith('checkin_') || k === LS_PREFIX.weight || k === LS_PREFIX.settings))
+      total += (localStorage.getItem(k) || '').length * 2;
+  }
+  return total;
+}
+
+function runCleanup() {
+  const cutoffDiet = new Date(Date.now() - RETENTION.diet * 86400000);
+  const cutoffCheckin = new Date(Date.now() - RETENTION.checkin * 86400000);
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+  for (const k of keys) {
+    if (!k) continue;
+    if (k.startsWith(LS_PREFIX.diet)) {
+      // 键名格式: diet_YYYYMMDD (旧) 或 diet_YYYYMMDD_HHMMSS (新)
+      const suffix = k.slice(5);
+      const datePart = suffix.slice(0, 8); // 取前 8 位日期
+      if (datePart.length === 8) { const dt = new Date(datePart.slice(0,4)+'-'+datePart.slice(4,6)+'-'+datePart.slice(6,8)); if (dt < cutoffDiet) lsDel(k); }
+    } else if (k.startsWith(LS_PREFIX.checkin)) {
+      const suffix = k.slice(8);
+      const datePart = suffix.slice(0, 8);
+      if (datePart.length === 8) { const dt = new Date(datePart.slice(0,4)+'-'+datePart.slice(4,6)+'-'+datePart.slice(6,8)); if (dt < cutoffCheckin) lsDel(k); }
+    }
+  }
+}
+
+// ── 简单异或加密 ──
+function xorEncrypt(text) { const key = 'fitsnap'; let r = ''; for (let i = 0; i < text.length; i++) r += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length)); return btoa(r); }
+function xorDecrypt(enc) { const key = 'fitsnap'; try { let r = atob(enc), t = ''; for (let i = 0; i < r.length; i++) t += String.fromCharCode(r.charCodeAt(i) ^ key.charCodeAt(i % key.length)); return t; } catch { return ''; } }
+
+// ── 设置读写 ──
+function loadSettings() { const d = lsGet(LS_PREFIX.settings); if (!d) return { apiType: 'openai', apiUrl: API_TEMPLATES.openai.url, apiKey: '', modelName: 'gpt-4o' }; if (d.apiKeyEncrypted) d.apiKey = xorDecrypt(d.apiKeyEncrypted); return d; }
+function saveSettings(s) { const c = { apiType: s.apiType, apiUrl: s.apiUrl, modelName: s.modelName, testedAt: s.testedAt || null }; if (s.apiKey) c.apiKeyEncrypted = xorEncrypt(s.apiKey); lsSet(LS_PREFIX.settings, c); }
+
+// ============================================================
+//  一、饮食分析模块
+// ============================================================
+let dietPendingImg = null;
+let dietPendingText = '';
+let dietMode = 'image'; // 'image' | 'text'
+
+function initDiet() {
+  const fi = $('dietFileInput');
+
+  $('btnCapture').onclick = () => { fi.setAttribute('capture', 'environment'); fi.click(); };
+  $('btnSelectPhoto').onclick = () => { fi.removeAttribute('capture'); fi.click(); };
+  fi.onchange = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const b64 = await compressImg(file, COMPRESS.diet);
+      dietPendingImg = b64;
+      $('dietPreviewImg').src = b64;
+      dietMode = 'image';
+      switchToPreview();
+    } catch (err) { toast('图片读取失败'); }
+  };
+
+  $('btnAnalyze').onclick = () => analyzeFood('image');
+  $('btnResetDiet').onclick = resetDiet;
+
+  // 文本描述模式
+  $('btnAnalyzeText').onclick = () => {
+    const text = $('dietTextInput').value.trim();
+    if (!text) { toast('请描述你吃了什么'); return; }
+    dietPendingText = text;
+    dietMode = 'text';
+    $('dietUploadCard').style.display = 'none';
+    $('dietPreview').style.display = 'none';
+    analyzeFood('text');
+  };
+}
+
+function switchToPreview() {
+  $('dietUploadCard').style.display = 'none';
+  $('dietPreview').style.display = 'block';
+  $('dietResult').style.display = 'none';
+  $('dietLoading').style.display = 'none';
+}
+
+function resetDiet() {
+  dietPendingImg = null;
+  dietPendingText = '';
+  dietMode = 'image';
+  $('dietFileInput').value = '';
+  $('dietTextInput').value = '';
+  $('dietUploadCard').style.display = 'block';
+  $('dietPreview').style.display = 'none';
+  $('dietResult').style.display = 'none';
+  $('dietLoading').style.display = 'none';
+}
+
+async function analyzeFood(mode) {
+  const isImage = (mode === 'image');
+  if (isImage && !dietPendingImg) return;
+  if (!isImage && !dietPendingText) return;
+
+  const settings = loadSettings();
+  if (!settings.apiKey && !(settings.apiType === 'ollama')) {
+    toast('请先在设置中配置 API Key');
+    $('dietLoading').style.display = 'none';
+    if (isImage) $('dietPreview').style.display = 'block';
+    else $('dietUploadCard').style.display = 'block';
+    return;
+  }
+
+  $('dietPreview').style.display = 'none';
+  $('dietUploadCard').style.display = 'none';
+  $('dietLoading').style.display = 'block';
+  $('dietResult').style.display = 'none';
+
+  const tmpl = API_TEMPLATES[settings.apiType] || API_TEMPLATES.custom;
+  const modelName = settings.modelName || 'gpt-4o';
+
+  let body;
+  if (isImage) {
+    body = tmpl.body(modelName, dietPendingImg);
+  } else {
+    const msg = { role: 'user', content: dietPendingText + '\n\n请分析上述饮食描述。' };
+    if (settings.apiType === 'anthropic') {
+      body = { model: modelName, max_tokens: 800, system: FOOD_PROMPT_TEXT, messages: [msg] };
+    } else {
+      body = { model: modelName, messages: [{ role: 'system', content: FOOD_PROMPT_TEXT }, msg], max_tokens: 800, temperature: 0.3 };
+    }
+  }
+
+  const headers = tmpl.headers(settings.apiKey);
+
+  try {
+    const resp = await fetch(settings.apiUrl || tmpl.url, {
+      method: 'POST', headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60000)
+    });
+    if (!resp.ok) {
+      const errTxt = await resp.text();
+      let hint = '';
+      if (isImage && (errTxt.includes('image') || errTxt.includes('vision') || errTxt.includes('multimodal') || errTxt.includes('model_not_support') || resp.status === 400)) {
+        hint = ' 该模型可能不支持视觉功能，请尝试下方的「分析文字描述」模式，或用支持视觉的模型（如 GPT-4o、Claude）。';
+      }
+      throw new Error(`API 返回错误 ${resp.status}: ${errTxt.slice(0, 200)}${hint}`);
+    }
+    const data = await resp.json();
+
+    let content = '';
+    if (settings.apiType === 'anthropic') {
+      content = data?.content?.[0]?.text || '';
+    } else {
+      content = data?.choices?.[0]?.message?.content || '';
+    }
+    let json = content.trim();
+    const m = json.match(/\{[\s\S]*\}/);
+    if (m) json = m[0];
+    const result = JSON.parse(json);
+
+    renderDietResult(result);
+    let thumbnail = '';
+    if (isImage && dietPendingImg) {
+      try { thumbnail = await compressImgDataUrl(dietPendingImg, COMPRESS.thumb); } catch(e) {}
+    }
+    const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14); // YYYYMMDDHHMMSS
+    const recordKey = LS_PREFIX.diet + todayStr().replace(/-/g, '') + '_' + ts;
+    const record = {
+      date: todayStr(),
+      mode: mode,
+      foods: result.foods || [],
+      total: result.total || {},
+      advice: result.advice || '',
+      textDesc: isImage ? '' : dietPendingText,
+      thumbnail: thumbnail,
+      createdAt: new Date().toISOString()
+    };
+    lsSet(recordKey, record);
+    renderDietHistory();
+    runCleanup();
+  } catch (err) {
+    $('dietLoading').style.display = 'none';
+    if (isImage) { $('dietPreview').style.display = 'block'; }
+    else { $('dietUploadCard').style.display = 'block'; }
+    toast('分析失败: ' + err.message);
+    console.error('Diet analysis error:', err);
+  }
+}
+
+function compressImgDataUrl(dataUrl, opts) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = opts.w; c.height = img.height * (opts.w / img.width);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', opts.q));
+    };
+    img.src = dataUrl;
+  });
+}
+
+function renderDietResult(result) {
+  $('dietLoading').style.display = 'none';
+  const r = $('dietResult');
+  r.style.display = 'block';
+
+  const total = result.total || {};
+  r.innerHTML = `<div class="card">
+    <div class="card-title">📊 营养分析结果</div>
+    <div class="nutrition-grid">
+      <div class="nutrition-item"><div class="value">${total.calories||'?'}</div><div class="label">热量 kcal</div></div>
+      <div class="nutrition-item"><div class="value">${total.protein||'?'}g</div><div class="label">蛋白质</div></div>
+      <div class="nutrition-item"><div class="value">${total.carbs||'?'}g</div><div class="label">碳水</div></div>
+      <div class="nutrition-item"><div class="value">${total.fat||'?'}g</div><div class="label">脂肪</div></div>
+    </div>
+    ${(result.foods||[]).length ? '<div class="food-list">'+result.foods.map(f=>`<span class="food-tag">${f.name} ${f.weight||''}g ≈${f.calories||'?'}kcal</span>`).join('')+'</div>' : ''}
+    ${result.advice ? '<p style="margin-top:10px;font-size:13px;color:var(--primary);">💡 '+result.advice+'</p>' : ''}
+    <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="resetDiet()">📷 再拍一张</button>
+  </div>`;
+}
+
+function renderDietHistory() {
+  const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(LS_PREFIX.diet)) keys.push(k); }
+  keys.sort().reverse();
+  const h = $('dietHistory');
+  if (!keys.length) { h.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">暂无记录</p>'; return; }
+  h.innerHTML = keys.map(k => {
+    const d = lsGet(k); if (!d) return '';
+    // 键名格式: diet_YYYYMMDD_HHMMSS，取日期部分
+    const ds = k.slice(5, 13);
+    const dateStr = ds.slice(0,4)+'-'+ds.slice(4,6)+'-'+ds.slice(6,8);
+    return `<div class="history-item">
+      ${d.thumbnail ? '<img class="thumb" src="'+d.thumbnail+'" alt="">' : (d.textDesc ? '<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px;">📝</div>' : '')}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${dateStr} ${d.mode === 'text' ? '<span style="font-size:10px;color:var(--text-secondary);font-weight:400;">文字描述</span>' : ''}</div>
+        <div style="font-size:12px;color:var(--primary);margin:2px 0;">热量 ${d.total?.calories||'?'} kcal · 蛋白 ${d.total?.protein||'?'}g</div>
+        <div class="food-list">${(d.foods||[]).map(f=>`<span class="food-tag">${f.name}</span>`).join('')}</div>
+        ${d.advice ? '<div class="history-meta" style="margin-top:4px;">💡 '+d.advice+'</div>' : ''}
+      </div>
+      <button class="btn btn-danger diet-del-btn" style="padding:4px 10px;font-size:11px;align-self:center;" data-key="${escapeHtml(k)}">✕</button>
+    </div>`;
+  }).join('');
+
+  // 事件委托：绑定删除按钮
+  h.querySelectorAll('.diet-del-btn').forEach(btn => {
+    btn.onclick = function() { deleteDiet(this.dataset.key); };
+  });
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+}
+
+function deleteDiet(key) {
+  if (confirm('删除这条饮食记录？')) { lsDel(key); renderDietHistory(); toast('已删除'); }
+}
+
+// ============================================================
+//  二、训练打卡模块
+// ============================================================
+let checkinPendingImg = null;
+let checkinCurrentMonth = new Date().getMonth();
+let checkinCurrentYear = new Date().getFullYear();
+
+function initCheckin() {
+  const fi = $('checkinFileInput');
+  $('btnCheckinPhoto').onclick = () => { fi.click(); };
+  fi.onchange = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const b64 = await compressImg(file, COMPRESS.checkin);
+      checkinPendingImg = b64;
+      $('checkinPreviewImg').src = b64;
+      $('checkinPreview').style.display = 'block';
+    } catch { toast('图片读取失败'); }
+  };
+
+  $('btnSaveCheckin').onclick = () => {
+    if (!checkinPendingImg) { toast('请先拍摄或选择一张照片'); return; }
+    const note = $('checkinNote').value.trim();
+    const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+    const record = { date: todayStr(), photo: checkinPendingImg, note, createdAt: new Date().toISOString() };
+    lsSet(LS_PREFIX.checkin + todayStr().replace(/-/g, '') + '_' + ts, record);
+    checkinPendingImg = null;
+    $('checkinFileInput').value = '';
+    $('checkinPreview').style.display = 'none';
+    $('checkinNote').value = '';
+    renderCheckinCalendar();
+    toast('打卡成功！');
+  };
+
+  renderCheckinCalendar();
+}
+
+function renderCheckinCalendar() {
+  const y = checkinCurrentYear, m = checkinCurrentMonth;
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const today = todayStr();
+
+  // 收集每天的打卡记录数
+  const checkinMap = new Map();
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(LS_PREFIX.checkin)) {
+      const suffix = k.slice(8);
+      const dateStr = suffix.slice(0, 4) + '-' + suffix.slice(4, 6) + '-' + suffix.slice(6, 8);
+      if (!checkinMap.has(dateStr)) checkinMap.set(dateStr, []);
+      checkinMap.get(dateStr).push(lsGet(k));
+    }
+  }
+
+  // 收集体重记录
+  const weightData = loadWeightData();
+  const weightMap = new Map(); // dateStr -> value
+  if (weightData && weightData.records) {
+    weightData.records.forEach(r => weightMap.set(r.date, r.value));
+  }
+
+  const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  let html = `<div class="calendar-header">
+    <button class="btn-icon checkin-prev">◀</button>
+    <span style="font-weight:600;">${y}年 ${monthNames[m]}</span>
+    <button class="btn-icon checkin-next">▶</button>
+  </div>`;
+
+  html += '<div class="calendar-grid">';
+  ['日','一','二','三','四','五','六'].forEach(n => html += '<div class="day-name">'+n+'</div>');
+
+  for (let i = 0; i < firstDay; i++) html += '<div class="day empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = fmtDate(new Date(y, m, d));
+    const cls = ['day'];
+    if (checkinMap.has(ds)) cls.push('checked');
+    if (weightMap.has(ds)) cls.push('weight-day');
+    if (ds === today) cls.push('today');
+    html += `<div class="${cls.join(' ')}" data-date="${ds}">${d}</div>`;
+  }
+  html += '</div>';
+
+  $('checkinCalendar').innerHTML = html;
+  $('checkinDetail').style.display = 'none';
+
+  // 事件委托：翻月按钮
+  $('checkinCalendar').querySelector('.checkin-prev').onclick = () => changeCheckinMonth(-1);
+  $('checkinCalendar').querySelector('.checkin-next').onclick = () => changeCheckinMonth(1);
+
+  // 事件委托：点击日期
+  $('checkinCalendar').querySelectorAll('.day[data-date]').forEach(el => {
+    el.onclick = () => {
+      $('checkinCalendar').querySelectorAll('.day.selected').forEach(d => d.classList.remove('selected'));
+      el.classList.add('selected');
+      showCheckinDetail(el.dataset.date);
+    };
+  });
+}
+
+function changeCheckinMonth(delta) {
+  checkinCurrentMonth += delta;
+  if (checkinCurrentMonth < 0) { checkinCurrentMonth = 11; checkinCurrentYear--; }
+  if (checkinCurrentMonth > 11) { checkinCurrentMonth = 0; checkinCurrentYear++; }
+  renderCheckinCalendar();
+}
+
+function showCheckinDetail(dateStr) {
+  // 查找该日期的所有打卡记录
+  const prefix = LS_PREFIX.checkin + dateStr.replace(/-/g, '') + '_';
+  const records = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(prefix)) { const d = lsGet(k); if (d) records.push({ key: k, data: d }); }
+  }
+  const oldKey = LS_PREFIX.checkin + dateStr.replace(/-/g, '');
+  const oldData = lsGet(oldKey);
+  if (oldData) records.push({ key: oldKey, data: oldData });
+
+  // 查找该日期的体重记录
+  const wData = loadWeightData();
+  const weightRecord = wData.records ? wData.records.find(r => r.date === dateStr) : null;
+
+  if (!records.length && !weightRecord) { $('checkinDetail').style.display = 'none'; return; }
+
+  $('checkinDetail').style.display = 'block';
+  let html = '';
+
+  // 体重卡片（最上方）
+  if (weightRecord) {
+    const diff = wData.records.indexOf(weightRecord) > 0
+      ? (weightRecord.value - wData.records[wData.records.indexOf(weightRecord) - 1].value).toFixed(1)
+      : null;
+    const diffStr = diff !== null ? (diff > 0 ? '↑' : diff < 0 ? '↓' : '→') + Math.abs(diff) + ' kg' : '';
+    html += `<div class="card" style="margin-bottom:8px;border-left:3px solid var(--warning);">
+      <div class="card-title">⚖️ ${dateStr} 体重</div>
+      <div style="font-size:24px;font-weight:700;color:var(--primary);">${weightRecord.value} <span style="font-size:14px;font-weight:400;">kg</span></div>
+      ${diffStr ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">较上次 '+diffStr+'</div>' : ''}
+      ${wData.goal ? '<div style="font-size:12px;color:var(--text-secondary);">距目标 '+(weightRecord.value - wData.goal).toFixed(1)+' kg</div>' : ''}
+    </div>`;
+  }
+
+  // 打卡记录卡片
+  html += records.map((r, idx) => `
+    <div class="card" style="margin-bottom:8px;">
+      <div class="card-title">📸 ${dateStr}${records.length > 1 ? ' #'+(idx+1) : ''} 训练打卡</div>
+      <img src="${r.data.photo}" style="width:100%;max-height:300px;object-fit:contain;border-radius:8px;margin:8px 0;" alt="">
+      ${r.data.note ? '<p style="font-size:13px;">📝 '+r.data.note+'</p>' : ''}
+      <button class="btn btn-danger btn-sm checkin-del-btn" data-key="${escapeHtml(r.key)}" style="margin-top:8px;">🗑 删除此打卡</button>
+    </div>
+  `).join('');
+
+  $('checkinDetail').innerHTML = html;
+
+  $('checkinDetail').querySelectorAll('.checkin-del-btn').forEach(btn => {
+    btn.onclick = function() {
+      if (confirm('删除 '+dateStr+' 的打卡记录？')) {
+        lsDel(this.dataset.key);
+        $('checkinDetail').style.display = 'none';
+        renderCheckinCalendar();
+        toast('已删除');
+      }
+    };
+  });
+}
+
+// ============================================================
+//  三、体重追踪模块
+// ============================================================
+let weightChart = null;
+
+function initWeight() {
+  $('weightDate').value = todayStr();
+  $('btnAddWeight').onclick = addWeight;
+  $('btnExportCSV').onclick = exportWeightCSV;
+
+  const data = loadWeightData();
+  if (data.goal) $('weightGoal').value = data.goal;
+  $('weightGoal').onchange = () => { const d = loadWeightData(); d.goal = parseFloat($('weightGoal').value) || null; saveWeightData(d); renderWeightAll(); };
+
+  // 记忆上次体重，预填输入框
+  if (data.records && data.records.length > 0) {
+    $('weightValue').value = data.records[data.records.length - 1].value;
+    $('weightValue').placeholder = '上次: ' + data.records[data.records.length - 1].value + ' kg';
+  }
+
+  renderWeightAll();
+}
+
+function loadWeightData() { const d = lsGet(LS_PREFIX.weight); return d || { records: [], goal: null }; }
+function saveWeightData(d) { lsSet(LS_PREFIX.weight, d); }
+
+function addWeight() {
+  const date = $('weightDate').value;
+  const val = parseFloat($('weightValue').value);
+  if (!date || isNaN(val)) { toast('请输入日期和体重'); return; }
+  const data = loadWeightData();
+  const idx = data.records.findIndex(r => r.date === date);
+  if (idx >= 0) data.records[idx].value = val;
+  else { data.records.push({ date, value: val }); data.records.sort((a, b) => a.date.localeCompare(b.date)); }
+  saveWeightData(data);
+  $('weightValue').value = '';
+  // 记忆：更新 placeholder
+  $('weightValue').placeholder = '上次: ' + val + ' kg';
+  renderWeightAll();
+  toast('体重已记录');
+}
+
+function deleteWeight(date) {
+  if (!confirm('删除 ' + date + ' 的体重记录？')) return;
+  const data = loadWeightData();
+  data.records = data.records.filter(r => r.date !== date);
+  saveWeightData(data);
+  renderWeightAll();
+}
+
+function renderWeightAll() {
+  const data = loadWeightData();
+  renderWeightChart(data);
+  renderWeightTable(data);
+  renderWeightSummary(data);
+  // 通知打卡日历刷新（展示体重标记）
+  if ($('page-weight').classList.contains('active')) {
+    try { renderCheckinCalendar(); } catch(e) {}
+  }
+}
+
+function renderWeightChart(data) {
+  if (typeof Chart === 'undefined') { console.warn('Chart.js 未加载，无法渲染体重曲线'); return; }
+  if (weightChart) weightChart.destroy();
+  const records = data.records || [];
+  if (!records.length) {
+    const ctx = $('weightChart').getContext('2d');
+    weightChart = new Chart(ctx, {
+      type: 'line', data: { labels: [], datasets: [] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } }
+      }
+    });
+    return;
+  }
+
+  const labels = records.map(r => r.date);
+  const values = records.map(r => r.value);
+
+  const datasets = [{
+    label: '体重 (kg)', data: values,
+    borderColor: '#2d6a4f', backgroundColor: 'rgba(45,106,79,0.08)',
+    fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#2d6a4f', borderWidth: 2
+  }];
+
+  if (data.goal) {
+    const goalLine = new Array(records.length).fill(data.goal);
+    datasets.push({
+      label: '目标 ' + data.goal + 'kg', data: goalLine,
+      borderColor: '#e67e22', borderDash: [6, 3], borderWidth: 1.5, pointRadius: 0, fill: false
+    });
+  }
+
+  const ctx = $('weightChart').getContext('2d');
+  weightChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 12, maxRotation: 45 } },
+        y: { grace: '5%', title: { display: true, text: 'kg' } }
+      },
+      plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } }
+    }
+  });
+}
+
+function renderWeightTable(data) {
+  const records = data.records || [];
+  if (!records.length) { $('weightTable').innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">暂无记录</p>'; return; }
+  $('weightTable').innerHTML = records.slice().reverse().map(r => `
+    <div class="weight-row" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;">${r.date}</span>
+      <span style="font-weight:600;">${r.value} kg</span>
+      <button class="btn btn-danger weight-del-btn" style="padding:2px 8px;font-size:11px;" data-date="${r.date}">✕</button>
+    </div>
+  `).join('');
+  // 事件委托
+  $('weightTable').querySelectorAll('.weight-del-btn').forEach(btn => {
+    btn.onclick = function() { deleteWeight(this.dataset.date); };
+  });
+}
+
+function renderWeightSummary(data) {
+  const records = data.records || [];
+  if (records.length < 2) { $('weightSummary').textContent = '至少记录两次体重后显示趋势'; return; }
+  const first = records[0].value, last = records[records.length-1].value;
+  const diff = (last - first).toFixed(1);
+  const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+  $('weightSummary').textContent = `从 ${records[0].date} 到 ${records[records.length-1].date}，体重变化 ${arrow} ${Math.abs(diff)} kg`;
+}
+
+function exportWeightCSV() {
+  const data = loadWeightData();
+  if (!data.records.length) { toast('没有数据可导出'); return; }
+  let csv = 'date,weight_kg\n';
+  data.records.forEach(r => csv += r.date + ',' + r.value + '\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=UTF-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'weight_data.csv'; a.click();
+  toast('CSV 已下载');
+}
+
+// ============================================================
+//  四、设置模块
+// ============================================================
+function initSettings() {
+  $('btnSettings').onclick = () => { $('settingsOverlay').classList.add('show'); loadSettingsToForm(); updateStorageUI(); };
+  $('btnSettingsClose').onclick = () => $('settingsOverlay').classList.remove('show');
+  $('apiTemplate').onchange = onTemplateChange;
+  $('btnTestConnection').onclick = testConnection;
+  $('btnExportAll').onclick = exportAllData;
+  $('btnImportData').onclick = () => $('importFileInput').click();
+  $('importFileInput').onchange = importData;
+  $('btnClearAll').onclick = clearAllData;
+}
+
+function loadSettingsToForm() {
+  const s = loadSettings();
+  $('apiTemplate').value = s.apiType || 'openai';
+  $('apiUrl').value = s.apiUrl || '';
+  $('modelName').value = s.modelName || 'gpt-4o';
+  $('apiKey').value = s.apiKey || '';
+  onTemplateChange();
+}
+
+function onTemplateChange() {
+  const t = $('apiTemplate').value;
+  const tmpl = API_TEMPLATES[t];
+  if (t !== 'custom' && tmpl) {
+    $('apiUrl').value = tmpl.url;
+    $('apiUrl').placeholder = tmpl.url;
+  }
+  // 切换模板时自动填入对应默认模型名
+  const defaults = { openai: 'gpt-4o', anthropic: 'claude-sonnet-4-6', deepseek: 'deepseek-chat', doubao: 'ep-xxxxxxxxxx', ollama: 'llama3.2-vision' };
+  if (defaults[t]) $('modelName').value = defaults[t];
+
+  if (t === 'ollama') $('apiKey').placeholder = '本地部署可留空';
+  else if (t === 'doubao') $('apiKey').placeholder = '火山方舟 API Key';
+  else $('apiKey').placeholder = 'sk-...';
+
+  // 豆包模板提示
+  const hint = $('modelHint');
+  if (t === 'doubao') { hint.style.display = 'block'; hint.textContent = '⚠️ 豆包 API 需要填接入点 ID（ep- 开头），不是模型名。在火山方舟控制台 → 在线推理 → 创建接入点获取。'; }
+  else { hint.style.display = 'none'; hint.textContent = ''; }
+}
+
+async function testConnection() {
+  const s = collectSettingsForm();
+  if (!s.apiUrl) { toast('请填写 API 地址'); return; }
+  if (!s.apiKey && s.apiType !== 'ollama') { toast('请填写 API Key'); return; }
+
+  $('connectionStatus').textContent = '⏳ 测试中...';
+  $('connectionStatus').style.color = 'var(--text-secondary)';
+
+  const tmpl = API_TEMPLATES[s.apiType] || API_TEMPLATES.custom;
+  // 发送一个最小测试请求（纯文本）
+  const testBody = s.apiType === 'anthropic'
+    ? { model: s.modelName, max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }
+    : { model: s.modelName, messages: [{ role: 'user', content: 'hi' }], max_tokens: 10 };
+
+  const start = Date.now();
+  try {
+    const resp = await fetch(s.apiUrl, { method: 'POST', headers: tmpl.headers(s.apiKey), body: JSON.stringify(testBody), signal: AbortSignal.timeout(15000) });
+    const ms = Date.now() - start;
+    if (resp.ok) {
+      $('connectionStatus').textContent = '✅ 连接成功 (' + ms + 'ms)';
+      $('connectionStatus').style.color = 'var(--primary)';
+      s.testedAt = new Date().toISOString();
+      saveSettings(s);
+    } else {
+      const err = await resp.text();
+      $('connectionStatus').textContent = '❌ ' + resp.status + ': ' + err.slice(0, 100);
+      $('connectionStatus').style.color = 'var(--danger)';
+    }
+  } catch (err) {
+    $('connectionStatus').textContent = '❌ 连接失败: ' + err.message;
+    $('connectionStatus').style.color = 'var(--danger)';
+  }
+}
+
+function collectSettingsForm() {
+  return {
+    apiType: $('apiTemplate').value,
+    apiUrl: $('apiUrl').value.trim(),
+    apiKey: $('apiKey').value.trim(),
+    modelName: $('modelName').value.trim() || 'gpt-4o'
+  };
+}
+
+function updateStorageUI() {
+  const usage = getStorageUsage();
+  const pct = Math.min(100, (usage / STORAGE_LIMIT) * 100);
+  const bar = $('storageBar');
+  bar.style.width = pct + '%';
+  bar.style.background = usage < 3*1024*1024 ? 'var(--primary)' : usage < 4*1024*1024 ? 'var(--warning)' : 'var(--danger)';
+  $('storageInfo').textContent = `已用 ${(usage/1024/1024).toFixed(2)} MB / 5 MB`;
+}
+
+function exportAllData() {
+  const data = { version: '1.0', exportedAt: new Date().toISOString(), diet: {}, checkin: {}, weight: loadWeightData(), settings: lsGet(LS_PREFIX.settings) || {} };
+  // 移除加密的 key
+  if (data.settings.apiKeyEncrypted) delete data.settings.apiKeyEncrypted;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(LS_PREFIX.diet)) data.diet[k.slice(5)] = lsGet(k);
+    if (k && k.startsWith(LS_PREFIX.checkin)) data.checkin[k.slice(8)] = lsGet(k);
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fitsnap_backup_' + todayStr() + '.json'; a.click();
+  toast('数据已导出');
+}
+
+function importData() {
+  const file = $('importFileInput').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.version) throw new Error('无效的备份文件');
+      // 合并饮食记录
+      if (data.diet) Object.entries(data.diet).forEach(([ds, v]) => { lsSet(LS_PREFIX.diet + ds, v); });
+      // 合并打卡记录
+      if (data.checkin) Object.entries(data.checkin).forEach(([ds, v]) => { lsSet(LS_PREFIX.checkin + ds, v); });
+      // 合并体重（同日期以较新为准）
+      if (data.weight) {
+        const existing = loadWeightData();
+        const merged = new Map();
+        existing.records.forEach(r => merged.set(r.date, r.value));
+        (data.weight.records||[]).forEach(r => merged.set(r.date, r.value));
+        existing.records = Array.from(merged.entries()).map(([date, value]) => ({ date, value })).sort((a,b) => a.date.localeCompare(b.date));
+        if (data.weight.goal && !existing.goal) existing.goal = data.weight.goal;
+        saveWeightData(existing);
+      }
+      runCleanup();
+      toast('导入成功！页面即将刷新');
+      setTimeout(() => location.reload(), 1500);
+    } catch (err) { toast('导入失败: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+function clearAllData() {
+  if (!confirm('确定清除全部数据？此操作不可恢复！')) return;
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && (k.startsWith(LS_PREFIX.diet) || k.startsWith(LS_PREFIX.checkin) || k === LS_PREFIX.weight || k === LS_PREFIX.settings)) keys.push(k);
+  }
+  keys.forEach(k => lsDel(k));
+  toast('所有数据已清除');
+  setTimeout(() => location.reload(), 1000);
+}
+
+// ============================================================
+//  五、全局初始化
+// ============================================================
+function switchPage(name) {
+  qsa('.page').forEach(p => p.classList.remove('active'));
+  $('page-' + name).classList.add('active');
+  qsa('.nav-item').forEach(n => n.classList.remove('active'));
+  qs('.nav-item[data-page="' + name + '"]').classList.add('active');
+
+  // 切换时刷新数据
+  if (name === 'diet') renderDietHistory();
+  if (name === 'checkin') renderCheckinCalendar();
+  if (name === 'weight') renderWeightAll();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // 导航绑定
+  qsa('.nav-item').forEach(btn => {
+    btn.onclick = () => switchPage(btn.dataset.page);
+  });
+
+  // 初始化各模块——独立 try/catch，某个出错不影响其他
+  try { initDiet(); } catch(e) { console.error('initDiet 失败:', e); }
+  try { initCheckin(); } catch(e) { console.error('initCheckin 失败:', e); }
+  try { initWeight(); } catch(e) { console.error('initWeight 失败:', e); }
+  try { initSettings(); } catch(e) { console.error('initSettings 失败:', e); }
+
+  // 启动清理
+  try { runCleanup(); } catch(e) { console.error('runCleanup 失败:', e); }
+
+  // 初始渲染
+  try { renderDietHistory(); } catch(e) { console.error('renderDietHistory 失败:', e); }
+});
+</script>
+
+</body>
+</html>
+
